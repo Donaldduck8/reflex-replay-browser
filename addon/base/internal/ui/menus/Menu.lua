@@ -7406,6 +7406,10 @@ end
 local function replayBrowserIndex()
 	Menu.replayBrowserTable = getReplayBrowserTable();
 
+	if (Menu.replayBrowserTable["folders"] == nil) then
+		Menu.replayBrowserTable["folders"] = {};
+	end
+
 	if (Menu.replayBrowserTable["ids"] == nil) then
 		Menu.replayBrowserTable["ids"] = {};
 	end
