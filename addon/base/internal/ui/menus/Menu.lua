@@ -8245,10 +8245,9 @@ function Menu:ui2DrawReplayBrowser()
 		nvgFillColor(Color(25,25,25));
 
 		-- map title & preview
-		local title = "";
+		local title = replayBrowserTable["info"][entrySelected]["szMapTitle"];
 
 		if (replayBrowserTable["info"][entrySelected]["workshopId"] == 0 or not connectedToSteam) then
-			title = replayBrowserTable["info"][entrySelected]["szMapTitle"];
 			nvgFillImagePattern("internal/ui/tiles/offline_replay_c", x, y, 620, 620 * 9 / 16);
 		else
 			-- need to iterate over all workshopMaps to find the correct one
