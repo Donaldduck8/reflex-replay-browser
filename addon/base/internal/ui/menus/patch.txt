@@ -1,0 +1,238 @@
+...
+
+require "base/internal/ReplayBrowserData"
+
+Menu = {
+...
+
+	replayBrowserTable = {};
+	replayBrowserCursorDirs = {};
+}
+
+...
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+local function getReplayBrowserDataDir(dirs)
+	local data = Menu.replayBrowserTable;
+
+	for i,dir in ipairs(dirs) do
+		data = data["folders"][dir];
+	end
+
+	return data;
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+local function replayBrowserQueryPreviews()
+	if connectedToSteam then
+		workshopQuerySpecificMaps(getReplayBrowserDataDir(Menu.replayBrowserCursorDirs)["ids"]);
+	end
+end
+
+--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
+local function replayBrowserIndex()
+	Menu.replayBrowserTable = getReplayBrowserTable();
+
+	if (Menu.replayBrowserTable["ids"] == nil) then
+		Menu.replayBrowserTable["ids"] = {};
+	end
+
+	if (Menu.replayBrowserTable["replays"] == nil) then
+		Menu.replayBrowserTable["replays"] = {};
+	end
+
+	if (Menu.replayBrowserTable["info"] == nil) then
+		Menu.replayBrowserTable["info"] = {};
+	end
+
+	-- Query all maps
+	replayBrowserQueryPreviews();
+end
+
+...
+
+function Menu:show() 
+	self.modes = {
+		...
+
+		[5] = 
+		{
+			...
+
+			subs = 
+			{
+				...
+				
+				[6] = { name = "Community Support", draw = self.ui2DrawLearn },
+				[7] = { name = "Replay Browser", draw = self.ui2DrawReplayBrowser, onSelected = replayBrowserIndex}
+
+...
+
+function is_empty(t)
+    for _,_ in pairs(t) do
+        return false
+    end
+    return true
+end
+
+function getEntryPath(entry)
+	local path = ""
+	for i,v in ipairs(Menu.replayBrowserCursorDirs) do
+		path = path .. v .. "/"
+	end
+
+	path = path .. entry
+
+	return path
+end
+
+function Menu:ui2DrawReplayBrowser()
+	-- TODO: Add custom itemDrawFunction
+
+	while (Menu.replayBrowserTable["replays"] == nil) do
+		replayBrowserIndex();
+	end
+
+	local replayBrowserTable = getReplayBrowserDataDir(Menu.replayBrowserCursorDirs);
+
+	local folders = replayBrowserTable["folders"];
+	local replays = replayBrowserTable["replays"];
+
+	local entries = {};
+
+	for k,v in pairs(folders) do
+		table.insert(entries, "/" .. k);
+		table.sort(entries);
+	end
+
+	for i,v in ipairs(replays) do
+		table.insert(entries, v);
+	end
+
+	local optargs = {
+		intensity = intensity;
+	};
+
+	nvgSave();
+	
+	local x = -620;
+	local y = -250;
+	local colWidth = 550;
+	local scrollSelHeight = 600;
+
+	optargs.enabled = not is_empty(Menu.replayBrowserCursorDirs);
+	optargs.halign = NVG_ALIGN_CENTER;
+	optargs.valign = NVG_ALIGN_MIDDLE;
+	if(ui2Button("Back", x, y - 30, 60, 40, optargs)) then
+		entrySelected = nil;
+		Menu.replayBrowserCursorDirs[#Menu.replayBrowserCursorDirs] = nil;
+		replayBrowserIndex();
+	end
+	optargs.enabled = nil;
+	optargs.halign = nil;
+	optargs.valign = nil;
+
+
+	optargs.enabled = false;
+	optargs.halign = NVG_ALIGN_CENTER;
+	ui2Label("Replays", x + 275, y, optargs);
+	optargs.halign = nil;
+	optargs.enabled = nil;
+	y = y + 40;
+
+	-- replay scroll selection
+	optargs.itemHeight = 35;
+	-- optargs.itemDrawFunction = blah;
+	optargs.itemPad = 5;
+	entrySelected = ui2ScrollSelection(
+		entries, entrySelected, x, y, colWidth, scrollSelHeight, self.scrollBarDataTrainingBotsMap, optargs);
+
+	-- replay data
+	if (entrySelected ~= nil) then
+		-- if we have selected a folder, go into it
+		if string.find(entrySelected, "/") then
+			local folderName = string.sub(entrySelected, 2);
+			table.insert(Menu.replayBrowserCursorDirs, folderName);
+			entrySelected = nil;
+			replayBrowserIndex();
+			nvgRestore();
+			return;
+		end
+
+		x = x + 620;
+
+		-- header
+		optargs.enabled = false;
+		optargs.halign = NVG_ALIGN_CENTER;
+		ui2Label("Information", x + 310, y - 40, optargs);
+		optargs.halign = nil;
+		optargs.enabled = nil;
+
+		-- outline preview box
+		nvgBeginPath();
+		nvgRect(x, y, 620, 620 * 9 / 16);
+		nvgClosePath();
+
+		-- preview base
+		nvgFillColor(Color(25,25,25));
+
+		-- map title & preview
+		local title = "";
+
+		if (replayBrowserTable["info"][entrySelected]["workshopId"] == 0 or not connectedToSteam) then
+			title = replayBrowserTable["info"][entrySelected]["szMapTitle"];
+			nvgFillImagePattern("internal/ui/tiles/offline_replay_c", x, y, 620, 620 * 9 / 16);
+		else
+			-- need to iterate over all workshopMaps to find the correct one
+			for k, v in ipairs(workshopMaps) do
+				-- typing problems, convert v.id to a number
+				if (v.id + 0 == replayBrowserTable["info"][entrySelected]["workshopId"]) then
+					title = v.workshopTitle;
+
+					nvgFillImagePattern(v.previewImageName, x, y, 620, 620 * 9 / 16);
+					break;
+				end
+			end
+		end
+
+		nvgFill();
+
+		-- move
+		y = y + 620 * 9 / 16;
+
+		-- date
+		local starttime = replayBrowserTable["info"][entrySelected]["epochStartTime"]
+
+		nvgFillColor(Color(200, 200, 200));
+		nvgFontSize(30);
+		nvgFontFace(FONT_TEXT);
+		nvgTextAlign(NVG_ALIGN_LEFT, NVG_ALIGN_MIDDLE);
+		nvgText(x, y + 20, title);
+		
+		nvgTextAlign(NVG_ALIGN_RIGHT, NVG_ALIGN_MIDDLE);
+		nvgText(x + 620, y + 20, starttime);
+
+		-- other info?
+
+		-- play button
+		local buttonText = "Play"
+		optargs.enabled = (entrySelected ~= nil);
+		if (ui2Button(buttonText, x, y + 150, 300, 100, optargs)) then
+			consolePerformCommand("play " .. getEntryPath(entrySelected));
+			hideMenu();
+		end
+
+		-- play PB button
+		local buttonText2 = "Start replay at PB"
+		optargs.enabled = (entrySelected ~= nil and replayBrowserTable["info"][entrySelected]["timecode"] ~= 0);
+		if (ui2Button(buttonText2, x + 320, y + 150, 300, 100, optargs)) then
+			consolePerformCommand("ui_playseek_to " .. getEntryPath(entrySelected) .. " " .. replayBrowserTable["info"][entrySelected]["timecode"]);
+			hideMenu();
+		end
+	end
+
+	nvgRestore();
+end
