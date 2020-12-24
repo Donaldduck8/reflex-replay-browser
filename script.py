@@ -107,41 +107,39 @@ def get_replay_header(replay_d):
 
 
 def get_max_timecode_fuzzy(replay_d, min_tc):
-    # Find the maximum timecode contained in the replay
+    MAX_DIFF_BETWEEN_TIMECODES = 96
+    NUM_MATCHES_REQUIRED = 4
+    NUM_SEARCH_VALUES = 500
 
-    # For this, start at the end of the replay and store the current 4 byte sequence at i_ts
-    # and compare with the byte sequence at i_neg. If the fuzzy logic (see below)
-    # thinks they might be timestamps based on their content and their differences, it's considered a match
+    start = len(replay_d) - 4
 
-    i_ts = len(replay_d) - 4
+    for x in range(start, start - NUM_SEARCH_VALUES, -1):
+        matches = 0
 
-    for x in range(0, 500): # i_ts
-        num_matches = 0
+        byte_seq_1 = replay_d[x : x + 4]
+        value_1 = ctypes.c_uint32.from_buffer(byte_seq_1).value
 
-        i_neg = i_ts - 4
+        # Make sure value is greater than minimum timecode
+        if value_1 < min_tc:
+            continue
 
-        byte_seq_1 = replay_d[i_ts : i_ts + 4]
+        # Check for other values earlier in the replay than byte_seq_1
+        for y in range(x - 4, x - 4 - NUM_SEARCH_VALUES, -1):
+            byte_seq_2 = replay_d[y : y + 4]
+            value_2 = ctypes.c_uint32.from_buffer(byte_seq_2).value
 
-        for y in range(0, 500): #i_neg
-            byte_seq_2 = replay_d[i_neg : i_neg + 4]
+            # Make sure value is greater than the minimum timecode, but less than value_1
+            if value_2 < min_tc or value_2 > value_1:
+                continue
 
-            # Check if the two byte sequences have differing first byte,
-            # but matching last byte
-            if (byte_seq_1[0:1] != byte_seq_2[0:1]) and (byte_seq_1[3:4] == byte_seq_2[3:4]):
-                ts_1 = ctypes.c_uint32.from_buffer(byte_seq_1).value
-                ts_2 = ctypes.c_uint32.from_buffer(byte_seq_2).value
+            # Make sure difference between values is small
+            if abs(value_1 - value_2) > MAX_DIFF_BETWEEN_TIMECODES:
+                continue
 
-                # Check if the difference between the byte sequences is small
-                # Some other fuzzy logic here, too
-                difference_1 = abs(ts_1 - ts_2)
+            matches += 1
 
-                if ts_1 > min_tc and difference_1 < 96:
-                    num_matches += 1
-
-                if num_matches > 4:
-                    return ts_1
-            i_neg -= 1
-        i_ts -= 1
+            if matches > NUM_MATCHES_REQUIRED:
+                return value_1
 
     print("Could not find confident maximum timecode")
     return 2147483647
@@ -171,58 +169,43 @@ def get_last_occurance_record(replay_d, min_score_b):
 
 
 def get_timecode_from_index_fuzzy(replay_d, min_tc, max_tc, min_score_index, min_score):
-    # We are now (very likely) in the vicinity of the run
-    # Move back to the first thing that looks like a timestamp
+    MAX_DIFF_BETWEEN_TIMECODES = 96
+    NUM_MATCHES_REQUIRED = 4
+    NUM_SEARCH_VALUES = 500
 
-    # For this, store the current 4 byte sequence at i_ts, and compare with byte sequences at
-    # i_pos and i_neg. If the fuzzy logic (see below) thinks they might be timestamps
-    # based on their content and their differences, it's considered a match
+    start = min_score_index - 4
 
-    i_ts = min_score_index - 4
-    i_pos = min_score_index + 4
-    min_score_timestamp = -1
+    for x in range(start, start - NUM_SEARCH_VALUES, -1):
+        matches = 0
 
-    for x in range(0, 250): # i_ts
-        num_matches = 0
+        byte_seq_1 = replay_d[x : x + 4]
+        value_1 = ctypes.c_uint32.from_buffer(byte_seq_1).value
 
-        byte_seq_1 = replay_d[i_ts : i_ts + 4]
+        # Make sure value is within timecode parameters
+        if value_1 < min_tc or value_1 > max_tc:
+            continue
 
-        i_neg = i_ts - 4
-        i_pos = i_ts + 4
+        # Check for other values earlier in the replay than byte_seq_1
+        for y in range(x, x - NUM_SEARCH_VALUES, -1):
+            byte_seq_2 = replay_d[y : y + 4]
+            value_2 = ctypes.c_uint32.from_buffer(byte_seq_2).value
 
-        for y in range(0, 250): # i_neg
-            byte_seq_2 = replay_d[i_neg : i_neg + 4]
+            # Make sure value is greater than the minimum timecode, but less than value_1
+            if value_2 < min_tc or value_2 > value_1:
+                continue
 
-            for z in range(0, 250): # i_pos
-                byte_seq_3 = replay_d[i_pos : i_pos + 4]
+            # Make sure difference between values is small
+            if abs(value_1 - value_2) > MAX_DIFF_BETWEEN_TIMECODES:
+                continue
 
-                # Check if the two byte sequences have differing first byte,
-                # but matching last byte
-                if (byte_seq_1[0:1] != byte_seq_2[0:1]) and (byte_seq_1[0:1] != byte_seq_3[0:1]) and (byte_seq_1[3:4] == byte_seq_2[3:4]) and (byte_seq_1[3:4] == byte_seq_3[3:4]):
-                    ts_1 = ctypes.c_uint32.from_buffer(byte_seq_1).value
-                    ts_2 = ctypes.c_uint32.from_buffer(byte_seq_2).value
-                    ts_3 = ctypes.c_uint32.from_buffer(byte_seq_3).value
+            matches += 1
 
-                    # Check if the difference between the byte sequences is small, and if they fit within the timecode range
-                    difference_1 = ts_1 - ts_2
-                    difference_2 = ts_1 - ts_3
+            if matches > NUM_MATCHES_REQUIRED:
+                # Adjust timestamp by subtracting run duration
+                # Give it a 1000ms buffer
+                value_1 -= (min_score + 1000)
 
-                    if difference_1 < 96 and difference_2 < 96:
-                        if ts_1 > min_tc and ts_1 < max_tc:
-                            num_matches += 1
-
-                if num_matches > 3:
-                    min_score_timestamp = byte_seq_1
-
-                    # Adjust timestamp by subtracting run duration
-                    # Give it a 1000ms buffer
-                    ts = ctypes.c_uint32.from_buffer(min_score_timestamp).value
-                    ts -= (min_score + 1000)
-
-                    return ts
-                i_pos += 1
-            i_neg -= 1
-        i_ts -= 1
+                return value_1
 
     print("Could not find confident PB timecode")
     return 0
@@ -365,8 +348,7 @@ def update():
 
 
 if __name__ == "__main__":
-    print("Reflex Replay Browser Script 202012231148 by Donald")
-    print("Indexing replays may take a while, be patient...")
+    print("Reflex Replay Browser Script 202012241828 by Donald")
 
     delay = 20
 
