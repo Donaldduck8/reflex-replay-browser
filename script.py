@@ -220,7 +220,6 @@ def get_max_timecode_fuzzy(replay_d, min_tc):
             matches += 1
 
             if matches > NUM_MATCHES_REQUIRED:
-                print("Found maximum timecode:", value_1)
                 return value_1
 
     print("Could not find confident maximum timecode")
@@ -526,7 +525,7 @@ def update():
 
 
 if __name__ == "__main__":
-    print("Reflex Replay Browser Script 202201161942 by Donald")
+    print("Reflex Replay Browser Script 202201200152 by Donald")
     print("Indexing a lot of replays may take a while, be patient...")
 
     if "-p" in sys.argv and not process_exists("reflex.exe"):
