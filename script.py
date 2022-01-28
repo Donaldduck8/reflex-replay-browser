@@ -407,7 +407,7 @@ def get_replay_info(replay_p):
     # Get replay header
     replay_header = get_replay_header(replay_d)
 
-    if replay_header.szGameMode == "RACE":
+    if replay_header.szGameMode == b"RACE":
         info["timecode"] = get_timecode(replay_header, replay_d)
     else:
         info["timecode"] = 0
@@ -453,7 +453,7 @@ def navigate(prev, dirs):
                 info, replay_header = get_replay_info(replay_p)
 
                 # If replay renaming is enabled, do that now
-                if cfg["REPLAY_RENAMING"] and replay_header.szGameMode == "RACE":
+                if cfg["REPLAY_RENAMING"] and replay_header.szGameMode == b"RACE":
                     # Read replay
                     with open(replay_p, "rb") as replay_f:
                         replay_d = bytearray(replay_f.read())
