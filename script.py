@@ -407,12 +407,16 @@ def get_replay_info(replay_p):
     # Get replay header
     replay_header = get_replay_header(replay_d)
 
-    info["timecode"] = get_timecode(replay_header, replay_d)
+    if replay_header.szGameMode == "RACE":
+        info["timecode"] = get_timecode(replay_header, replay_d)
+    else:
+        info["timecode"] = 0
+
     info["workshopId"] = replay_header.workshopId
     info["epochStartTime"] = datetime.utcfromtimestamp(replay_header.epochStartTime).strftime('%Y-%m-%d %H:%M:%S UTC')
     info["szMapTitle"] = replay_header.szMapTitle.decode("utf-8")
 
-    return info
+    return info, replay_header
 
 
 def navigate(prev, dirs):
@@ -446,15 +450,15 @@ def navigate(prev, dirs):
 
             # If replay is new, calculate info ourselves
             if info is None:
-                info = get_replay_info(replay_p)
+                info, replay_header = get_replay_info(replay_p)
 
                 # If replay renaming is enabled, do that now
-                if cfg["REPLAY_RENAMING"]:
+                if cfg["REPLAY_RENAMING"] and replay_header.szGameMode == "RACE":
                     # Read replay
                     with open(replay_p, "rb") as replay_f:
                         replay_d = bytearray(replay_f.read())
 
-                    record_score, player_name = get_min_score_and_player_name(get_replay_header(replay_d))
+                    record_score, player_name = get_min_score_and_player_name(replay_header)
 
                     player_name = re.sub(r"\^\d", "", player_name)
                     player_name = unidecode(player_name)
