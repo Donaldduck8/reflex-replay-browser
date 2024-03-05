@@ -2,7 +2,7 @@
 
 An addon + script for Reflex Arena that adds an in-game replay browser.
 
-![The replay browser in action](https://cdn.discordapp.com/attachments/494031100096544769/794289696922140672/asgfb.png)
+![The replay browser in action](/img/reflex_browser.png)
 
 ## Installation
 
